@@ -12,14 +12,22 @@ function onOpen() {
  * Formats text to use in BYOP scripts.  Sends email to address specified in setup sheet.
  */
 function formatText() {
+  const dataCol = 1;
   let ssSettings = SpreadsheetApp.getActiveSpreadsheet();
   let data = ssSettings.getDataRange().getValues();
-  let url = data[0][1];
-  let email = data[1][1];
-  let subject = data[2][1];
-  let sheetName = data[3][1];
-  let numExpectedCols = data[4][1];
-  let initialString = "<b>INITIAL OUTBOUND MESSAGE:</b><br><br>";
+  let url = data[0][dataCol];
+  let infoString = "";
+  let email = data[1][dataCol];
+  let startedMessage = false;
+  if (!isValidEmail(email)) {
+    infoString = "Email field not valid; aborting."
+    info(infoString);
+    return;
+  }
+  let subject = data[2][dataCol];
+  let sheetName = data[3][dataCol];
+  let dataStartCol = data[4][dataCol]-1;
+  let initialString = "<br><b>INITIAL OUTBOUND MESSAGE:</b><br><br>";
   let questionString = "<br><br><b>QUESTION ANSWERS:</b><ul style=\" margin-bottom: 2px;\">";
   let signoffString = "</ul><b>FINAL SIGNOFF:</b><ul style=\" margin-bottom: 2px;\">";
   let additionalString = "</ul><b>ADDITIONAL RESPONSES:</b><ul style=\" margin-bottom: 2px;\">";
@@ -27,19 +35,15 @@ function formatText() {
 
   let ss = SpreadsheetApp.openByUrl(url).getSheetByName(sheetName);
   data = ss.getDataRange().getValues();
-  let numRows = data.length;
-  let numCols = data[0].length;
-  if (numCols != numExpectedCols) {
-    info("Columns not equal 2; aborting");
-    return;
-  }
   data.forEach((row) => {
-    let trimmedString = row[0].trim();
+    let trimmedString = row[dataStartCol].trim();
     switch (trimmedString) {
       case "MESSAGE":
+        startedMessage = true;
         break;
       case "INITIAL OUTBOUND":
-        htmlBlob += initialString + row[1];
+        startedMessage = true;
+        htmlBlob += initialString + row[dataStartCol+1];
         break;
       case "QUESTION ANSWERS":
         htmlBlob += questionString;
@@ -51,7 +55,11 @@ function formatText() {
         htmlBlob += additionalString;
         break;
       default:
-        htmlBlob += "<li style=\" margin-bottom: .2in;\"><b>"+row[0]+":</b> "+row[1];
+        if (!startedMessage) {
+          htmlBlob += "<b>" + row[0] + "</b><br><br>";
+        } else {
+          htmlBlob += "<li style=\" margin-bottom: .2in;\"><b>"+row[0]+":</b> "+row[1];
+        }
         break;
     }
   });
@@ -72,9 +80,12 @@ function formatText() {
         // inlineImages: emailTemplate.inlineImages
       }
     );
-    console.log("Message sent to %s at %s", email, getTimestamp());
+    infoString = "Message sent to " + email;
+    info(infoString);
+    console.log("Message sent to %s", email);
   } catch (e) {
     Logger.log("Failed to send email: " + e);
+    info("Failed to send email");
   }
   // let htmltemplate = HtmlService.createHtmlOutput(htmlBlob);
 }
@@ -86,3 +97,103 @@ function formatText() {
 function info(text) {
   SpreadsheetApp.getActiveSpreadsheet().toast(text, "Info"); 
 }
+
+function isValidEmail(email) {
+  var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+}
+
+
+
+// /**
+//  * Creates the menu item "Format..." for user to run scripts.
+//  */
+// function onOpen() {
+//   const ui = SpreadsheetApp.getUi();
+//   ui.createMenu('Format...')
+//       .addItem('Format text', 'formatText')
+//       .addToUi();
+// }
+
+// /**
+//  * Formats text to use in BYOP scripts.  Sends email to address specified in setup sheet.
+//  */
+// function formatText() {
+//   let ssSettings = SpreadsheetApp.getActiveSpreadsheet();
+//   let data = ssSettings.getDataRange().getValues();
+//   let url = data[0][1];
+//   let email = data[1][1];
+//   let subject = data[2][1];
+//   let sheetName = data[3][1];
+//   let numExpectedCols = data[4][1];
+//   let initialString = "<br><b>INITIAL OUTBOUND MESSAGE:</b><br><br>";
+//   let questionString = "<br><br><b>QUESTION ANSWERS:</b><ul style=\" margin-bottom: 2px;\">";
+//   let signoffString = "</ul><b>FINAL SIGNOFF:</b><ul style=\" margin-bottom: 2px;\">";
+//   let additionalString = "</ul><b>ADDITIONAL RESPONSES:</b><ul style=\" margin-bottom: 2px;\">";
+//   let htmlBlob = "";
+
+//   let ss = SpreadsheetApp.openByUrl(url).getSheetByName(sheetName);
+//   data = ss.getDataRange().getValues();
+//   let numRows = data.length;
+//   let numCols = data[0].length;
+//   if (numCols != numExpectedCols) {
+//     info("Columns not equal %s; aborting", numExpectedCols);
+//     return;
+//   }
+  
+//   data.forEach((row) => {
+//     let trimmedString = row[0].trim();
+//     switch (trimmedString) {
+//       case "MESSAGE":
+//         break;
+//       case "INITIAL OUTBOUND":
+//         htmlBlob += initialString + row[1];
+//         break;
+//       case "QUESTION ANSWERS":
+//         htmlBlob += questionString;
+//         break;
+//       case "FINAL SIGNOFF":
+//         htmlBlob += signoffString;
+//         break;
+//       case "ADDITIONAL RESPONSES":
+//         htmlBlob += additionalString;
+//         break;
+//       default:
+//         htmlBlob += "<li style=\" margin-bottom: .2in;\"><b>"+row[0]+":</b> "+row[1];
+//         break;
+//     }
+//   });
+//   htmlBlob += "</ul>"
+//   try {
+//     GmailApp.sendEmail(
+//       email,
+//       subject,
+//       "",
+//       {htmlBody: htmlBlob,
+//         // bcc: bccEmail,
+//         // cc: ccEmail,
+//         // from: 'info@vopropros.com',
+//         // name: 'VoPro Pros',
+//         // replyTo: 'info@vopropros.com',
+//         // noReply: true, // if the email should be sent from a generic no-reply email address (not available to gmail.com users)
+//         // attachments: emailTemplate.attachments,
+//         // inlineImages: emailTemplate.inlineImages
+//       }
+//     );
+//     infoString = "Message sent to " + email;
+//     info(infoString);
+//     console.log("Message sent to %s", email);
+//   } catch (e) {
+//     Logger.log("Failed to send email: " + e);
+//     info("Failed to send email");
+//   }
+//   // let htmltemplate = HtmlService.createHtmlOutput(htmlBlob);
+// }
+
+// /**
+//  * Small wrapper for toast() call to spreadsheet.
+//  * @param {String} text
+//  */
+// function info(text) {
+//   SpreadsheetApp.getActiveSpreadsheet().toast(text, "Info"); 
+// }
